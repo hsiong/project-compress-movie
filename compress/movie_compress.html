@@ -9,7 +9,7 @@
 <body>
 <div class="wrap">
   <div class="card">
-    <h1>多视频压缩（国内源｜拖拽上传｜逐个进度｜单个/批量下载 ZIP）</h1>
+    <h1>多视频压缩（国内源｜拖拽上传｜逐个进度｜单个/批量下载）</h1>
     <div class="muted">
       纯前端压缩：视频不会上传服务器。首次加载会下载 ffmpeg wasm（几十 MB）。
       <br/>稳定优先：默认队列逐个处理（避免并发占满内存导致崩溃）。
@@ -17,7 +17,7 @@
 
     <div class="row">
       <div class="col">
-        <label>输出分辨率（保持比例）</label>
+        <label>输出分辨率（按比例）</label>
         <select id="scale">
           <option value="orig" selected>默认</option>
           <option value="1920">最长边 1920（≈1080p）</option>
@@ -53,7 +53,7 @@
     </div>
 
     <div class="btns">
-      <button id="loadBtn">1) 加载压缩引擎（国内源优先）</button>
+      <button id="loadBtn">1) 加载压缩引擎</button>
       <button id="startBtn" disabled>2) 开始压缩（队列）</button>
       <button id="stopBtn" class="danger" disabled>停止</button>
       <button id="clearBtn" class="ghost">清空列表</button>
