@@ -54,6 +54,7 @@ let queue = []; // {id, file, ui..., outBlob, outName, status}
 let running = false;
 let stopRequested = false;
 let currentItemId = null;
+let currentItemDurationSec = 0;
 const EXEC_TIMEOUT_MS = 8 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -105,6 +106,21 @@ function setRowProgress(item, p) {
   const pct = Math.max(0, Math.min(100, Math.round((p || 0) * 100)));
   item.barFill.style.width = pct + "%";
   item.pctEl.textContent = pct + "%";
+}
+
+function parseClockToSeconds(clock) {
+  const m = String(clock || "").match(/^(\d+):(\d+):(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+}
+
+function extractProgressFromLog(message, durationSec) {
+  if (!durationSec || durationSec <= 0) return null;
+  const m = String(message || "").match(/time=(\d+:\d+:\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const sec = parseClockToSeconds(m[1]);
+  if (!Number.isFinite(sec) || sec < 0) return null;
+  return Math.max(0, Math.min(1, sec / durationSec));
 }
 
 function downloadBlob(blob, filename) {
@@ -334,6 +350,13 @@ async function loadEngine() {
     });
     ffmpeg.on("log", ({ message }) => {
       if (!message) return;
+      if (currentItemId && currentItemDurationSec > 0) {
+        const item = queue.find((x) => x.id === currentItemId);
+        if (item && item.status === "working") {
+          const p = extractProgressFromLog(message, currentItemDurationSec);
+          if (p !== null) setRowProgress(item, p);
+        }
+      }
       if (/time=|speed=|frame=|Error|error|failed|Invalid/i.test(message)) {
         log(message);
       }
@@ -447,6 +470,27 @@ async function safeDelete(path) {
   try { await ffmpeg.deleteFile(path); } catch (_) {}
 }
 
+async function probeDurationSec(inPath) {
+  const probePath = `${inPath}.duration.txt`;
+  try {
+    await safeDelete(probePath);
+    await ffmpeg.ffprobe([
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      inPath,
+      "-o", probePath
+    ], 30_000);
+    const raw = await ffmpeg.readFile(probePath, "utf8");
+    const n = Number(String(raw || "").trim());
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch (_) {
+    return 0;
+  } finally {
+    await safeDelete(probePath);
+  }
+}
+
 async function compressOne(item) {
   const file = item.file;
   item.status = "working";
@@ -460,6 +504,7 @@ async function compressOne(item) {
 
   const inPath = `in_${item.id}`;
   const outPath = `out_${item.id}.mp4`;
+  currentItemDurationSec = 0;
 
   const scale = scaleEl.value;
   let vf = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
@@ -467,6 +512,9 @@ async function compressOne(item) {
     vf =
       `scale='if(gte(iw,ih),${scale},-2)':'if(gte(iw,ih),-2,${scale})',` +
       `scale=trunc(iw/2)*2:trunc(ih/2)*2`;
+  } else {
+    // 原始宽高的一半，并保证为偶数
+    vf = "scale=trunc(iw/2/2)*2:trunc(ih/2/2)*2";}
   }
 
   const crf = String(crfEl.value);
@@ -495,6 +543,10 @@ async function compressOne(item) {
     log(`开始压缩：${file.name}｜preset=${preset}｜crf=${crf}｜threads=${threads}`);
     log("写入输入文件到 wasm FS …");
     await ffmpeg.writeFile(inPath, await fetchFile(file));
+    currentItemDurationSec = await probeDurationSec(inPath);
+    if (currentItemDurationSec > 0) {
+      log(`时长探测：${currentItemDurationSec.toFixed(2)}s`);
+    }
     log("写入完成，开始执行 ffmpeg …");
     await ffmpeg.exec(args, EXEC_TIMEOUT_MS);
     log("ffmpeg 执行完成，开始读取输出文件 …");
@@ -523,6 +575,7 @@ async function compressOne(item) {
     await safeDelete(inPath);
     await safeDelete(outPath);
   } finally {
+    currentItemDurationSec = 0;
     setSummary();
     refreshButtons();
   }
