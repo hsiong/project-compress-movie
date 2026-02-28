@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>多视频压缩（国内源｜拖拽上传｜逐个进度｜单个/批量下载）</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>多视频压缩（国内源｜拖拽上传｜逐个进度｜单个/批量下载 ZIP）</h1>
+    <div class="muted">
+      纯前端压缩：视频不会上传服务器。首次加载会下载 ffmpeg wasm（几十 MB）。
+      <br/>稳定优先：默认队列逐个处理（避免并发占满内存导致崩溃）。
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <label>输出分辨率（保持比例）</label>
+        <select id="scale">
+          <option value="orig" selected>原始</option>
+          <option value="1920">最长边 1920（≈1080p）</option>
+          <option value="1280">最长边 1280（≈720p）</option>
+          <option value="854">最长边 854（≈480p）</option>
+          <option value="640">最长边 640</option>
+        </select>
+      </div>
+      <div class="col">
+        <label>CRF（画质↔体积，越大越小）: <span id="crfVal">28</span></label>
+        <input id="crf" type="range" min="18" max="38" step="1" value="28" />
+      </div>
+      <div class="col">
+        <label>编码速度（越快越大）</label>
+        <select id="preset">
+          <option value="ultrafast">ultrafast</option>
+          <option value="superfast">superfast</option>
+          <option value="veryfast" selected>veryfast（推荐）</option>
+          <option value="faster">faster</option>
+          <option value="fast">fast</option>
+          <option value="medium">medium（更慢/更小）</option>
+        </select>
+      </div>
+      <div class="col">
+        <label>音频码率 kbps</label>
+        <select id="ab">
+          <option value="64">64</option>
+          <option value="96">96</option>
+          <option value="128" selected>128</option>
+          <option value="192">192</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="loadBtn">1) 加载压缩引擎（国内源优先）</button>
+      <button id="startBtn" disabled>2) 开始压缩（队列）</button>
+      <button id="stopBtn" class="danger" disabled>停止</button>
+      <button id="clearBtn" class="ghost">清空列表</button>
+
+      <span class="pill rightNote">
+        <input id="autoDownload" type="checkbox" style="transform:scale(1.1)" />
+        <label for="autoDownload" style="display:inline;margin:0;color:#a7acb9;cursor:pointer">
+          完成后自动触发下载（多文件可能被拦截）
+        </label>
+      </span>
+    </div>
+
+    <div class="drop" id="drop">
+      <div class="left">
+        <div class="title">拖拽视频到这里</div>
+        <div class="small">支持多选/多文件。或点击右侧“选择文件”。</div>
+        <div class="pill" id="summary"></div>
+      </div>
+      <div class="actions">
+        <button class="mini ghost" id="pickBtn">选择文件</button>
+        <input id="picker" type="file" accept="video/*" multiple />
+        <button class="mini" id="zipBtn" disabled>批量下载 ZIP</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+      <tr>
+        <th style="width:36%">文件</th>
+        <th style="width:16%">大小（原/新）</th>
+        <th style="width:30%">进度</th>
+        <th style="width:18%">操作</th>
+      </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="muted" style="margin-top:14px">
+    如仍有网络拦截：最稳是把 @ffmpeg/ffmpeg、@ffmpeg/util、@ffmpeg/core 下载到你自己的同域静态目录再改 URL。
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
