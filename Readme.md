@@ -32,7 +32,7 @@ sh start.sh
 ## Docker Deploy
 
 ```bash
-docker compose up -d --build
+docker compose -f file/docker-compose.yml up -d --build
 ```
 
 Then open:
@@ -44,3 +44,5 @@ Then open:
 - Runs fully in browser; videos are not uploaded to a backend.
 - Uses `@ffmpeg/core-mt` and requires COOP/COEP headers.
 - `serve_coi.py` already sets required headers for local development.
+- Accessing via `http://LAN_IP:9003` is not a secure context in browsers; the app auto-falls back to single-thread core.
+- To use multi-thread core over LAN/public access, serve the page over HTTPS.

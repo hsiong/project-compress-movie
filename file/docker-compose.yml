@@ -1,8 +1,8 @@
 services:
   movie-compress:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: file/Dockerfile
     container_name: movie-compress
     ports:
       - "9003:9003"

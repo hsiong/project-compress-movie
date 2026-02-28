@@ -30,7 +30,7 @@ sh start.sh
 ## Docker 部署
 
 ```bash
-docker compose up -d --build
+docker compose -f file/docker-compose.yml up -d --build
 ```
 
 然后打开：
@@ -42,3 +42,5 @@ docker compose up -d --build
 - 全程浏览器内处理，视频不会上传后端。
 - 当前使用 `@ffmpeg/core-mt` 多线程核心。
 - 多线程需要 COOP/COEP 响应头，`serve_coi.py` 已内置。
+- 通过 `http://局域网IP:9003` 访问时，浏览器通常不是安全上下文，程序会自动降级到单线程 core。
+- 若要在局域网/公网访问下启用多线程 core，请使用 HTTPS。

@@ -5,14 +5,16 @@ const SOURCES = [
     ffmpeg: "https://registry.npmmirror.com/@ffmpeg/ffmpeg/0.12.15/files/dist/esm/index.js",
     util:  "https://registry.npmmirror.com/@ffmpeg/util/0.12.2/files/dist/esm/index.js",
     ffmpegWorkerBase: "https://registry.npmmirror.com/@ffmpeg/ffmpeg/0.12.15/files/dist/esm",
-    coreBase: "https://registry.npmmirror.com/@ffmpeg/core-mt/0.12.10/files/dist/esm",
+    coreBaseMT: "https://registry.npmmirror.com/@ffmpeg/core-mt/0.12.10/files/dist/esm",
+    coreBaseST: "https://registry.npmmirror.com/@ffmpeg/core/0.12.10/files/dist/esm",
   },
   {
     name: "jsDelivr",
     ffmpeg: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js",
     util:  "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js",
     ffmpegWorkerBase: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm",
-    coreBase: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm",
+    coreBaseMT: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm",
+    coreBaseST: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm",
   }
 ];
 
@@ -333,13 +335,6 @@ async function loadEngine() {
   logEl.style.display = "block";
 
   try {
-    if (!crossOriginIsolated) {
-      throw new Error(
-        "当前页面不是 crossOriginIsolated，@ffmpeg/core-mt 无法运行。\n" +
-        "请使用带 COOP/COEP 头的服务启动页面。"
-      );
-    }
-
     await loadFFmpegModules();
 
     ffmpeg = new FFmpeg();
@@ -362,8 +357,12 @@ async function loadEngine() {
       }
     });
 
-    const coreBase = activeSource.coreBase;
+    const useMT = crossOriginIsolated;
+    const coreBase = useMT ? activeSource.coreBaseMT : activeSource.coreBaseST;
     const workerBase = activeSource.ffmpegWorkerBase;
+    if (!useMT) {
+      log("当前环境不是 crossOriginIsolated，自动降级到单线程 core（可正常压缩）。");
+    }
 
     log("开始加载核心（core/wasm/worker）…");
 
@@ -383,11 +382,13 @@ async function loadEngine() {
       throw new Error("core.wasm 加载失败：\n" + String(e));
     }
 
-    try {
-      workerURL = await toBlobURL(`${coreBase}/ffmpeg-core.worker.js`, "text/javascript");
-      log("core.worker.js ✅");
-    } catch (e) {
-      throw new Error("core.worker.js 加载失败：\n" + String(e));
+    if (useMT) {
+      try {
+        workerURL = await toBlobURL(`${coreBase}/ffmpeg-core.worker.js`, "text/javascript");
+        log("core.worker.js ✅");
+      } catch (e) {
+        throw new Error("core.worker.js 加载失败：\n" + String(e));
+      }
     }
 
     try {
@@ -399,7 +400,9 @@ async function loadEngine() {
     }
 
     log("调用 ffmpeg.load() …");
-    await ffmpeg.load({ coreURL, wasmURL, workerURL, classWorkerURL });
+    const loadConfig = { coreURL, wasmURL, classWorkerURL };
+    if (useMT && workerURL) loadConfig.workerURL = workerURL;
+    await ffmpeg.load(loadConfig);
     log("执行自检 ffmpeg.exec(-version) …");
     await ffmpeg.exec(["-hide_banner", "-version"], 30_000);
     log("ffmpeg.exec 自检 ✅");
