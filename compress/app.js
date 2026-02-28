@@ -505,6 +505,7 @@ async function compressOne(item) {
   const inPath = `in_${item.id}`;
   const outPath = `out_${item.id}.mp4`;
   currentItemDurationSec = 0;
+  let fallbackTimer = null;
 
   const scale = scaleEl.value;
   let vf = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
@@ -514,7 +515,7 @@ async function compressOne(item) {
       `scale=trunc(iw/2)*2:trunc(ih/2)*2`;
   } else {
     // 原始宽高的一半，并保证为偶数
-    vf = "scale=trunc(iw/2/2)*2:trunc(ih/2/2)*2";}
+    vf = "scale=trunc(iw/2/2)*2:trunc(ih/2/2)*2";
   }
 
   const crf = String(crfEl.value);
@@ -547,6 +548,13 @@ async function compressOne(item) {
     if (currentItemDurationSec > 0) {
       log(`时长探测：${currentItemDurationSec.toFixed(2)}s`);
     }
+    // 兜底进度：某些浏览器/内核不回传 progress 时，避免进度条长期停在 0%
+    fallbackTimer = setInterval(() => {
+      if (item.status !== "working") return;
+      const currentPct = Number(item.pctEl.textContent.replace("%", "")) || 0;
+      if (currentPct >= 95) return;
+      setRowProgress(item, (currentPct + 1) / 100);
+    }, 900);
     log("写入完成，开始执行 ffmpeg …");
     await ffmpeg.exec(args, EXEC_TIMEOUT_MS);
     log("ffmpeg 执行完成，开始读取输出文件 …");
@@ -575,6 +583,7 @@ async function compressOne(item) {
     await safeDelete(inPath);
     await safeDelete(outPath);
   } finally {
+    if (fallbackTimer) clearInterval(fallbackTimer);
     currentItemDurationSec = 0;
     setSummary();
     refreshButtons();
