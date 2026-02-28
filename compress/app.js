@@ -72,12 +72,13 @@ function log(line) {
 }
 
 function refreshButtons() {
-  const hasQueued = queue.some((x) => x.status === "queued");
+  const hasItems = queue.length > 0;
+  const hasDone = queue.some((x) => x.status === "done" && x.outBlob && x.outName);
   loadBtn.disabled = loaded || loading;
-  startBtn.disabled = !loaded || running || !hasQueued;
+  startBtn.disabled = !loaded || running || !hasItems;
   stopBtn.disabled = !running;
   clearBtn.disabled = running;
-  zipBtn.disabled = running || queue.filter((x) => x.status === "done").length === 0;
+  zipBtn.disabled = running || !hasDone;
 
   loadBtn.textContent = loaded
     ? "已加载 ✅"
@@ -307,7 +308,7 @@ function makeRow(id, file) {
 }
 
 // ===== 加载引擎（加载中状态 + 失败详细日志）=====
-loadBtn.addEventListener("click", async () => {
+async function loadEngine() {
   if (loaded || loading) return;
 
   loading = true;
@@ -390,11 +391,26 @@ loadBtn.addEventListener("click", async () => {
     loading = false;
     refreshButtons();
   }
-});
+}
+
+loadBtn.addEventListener("click", loadEngine);
 
 // ===== 队列压缩 =====
 startBtn.addEventListener("click", async () => {
-  if (!loaded || running) return;
+  if (!loaded || running || queue.length === 0) return;
+
+  if (!queue.some((x) => x.status === "queued")) {
+    for (const item of queue) {
+      item.status = "queued";
+      item.outBlob = null;
+      item.outName = null;
+      item.outDiv.innerHTML = `<b>${humanSize(item.file.size)}</b><br><span class="muted">—</span>`;
+      item.dlBtn.disabled = true;
+      setRowProgress(item, 0);
+      setRowStatus(item, "待压缩");
+    }
+    log("未发现待压缩任务，已重置现有文件并重新开始。");
+  }
 
   stopRequested = false;
   running = true;
@@ -512,31 +528,22 @@ async function compressOne(item) {
   }
 }
 
-// ===== ZIP 批量下载 =====
+// ===== 批量下载（逐个下载全部已完成）=====
 zipBtn.addEventListener("click", async () => {
   const doneItems = queue.filter((x) => x.status === "done" && x.outBlob && x.outName);
   if (doneItems.length === 0) return;
 
   zipBtn.disabled = true;
   const oldText = zipBtn.textContent;
-  zipBtn.textContent = "打包中…";
+  zipBtn.textContent = "下载中…";
 
   try {
-    const JSZip = await loadJSZip();
-    const zip = new JSZip();
-    const folder = zip.folder("compressed_videos");
-
-    for (const item of doneItems) {
-      const ab = await item.outBlob.arrayBuffer();
-      folder.file(item.outName, ab);
+    for (let i = 0; i < doneItems.length; i++) {
+      const item = doneItems[i];
+      zipBtn.textContent = `下载中…${i + 1}/${doneItems.length}`;
+      downloadBlob(item.outBlob, item.outName);
+      await sleep(250);
     }
-
-    const zipBlob = await zip.generateAsync({ type: "blob" }, (meta) => {
-      zipBtn.textContent = `打包中…${Math.round(meta.percent)}%`;
-    });
-
-    const name = `videos_compressed_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.zip`;
-    downloadBlob(zipBlob, name);
   } catch (e) {
     console.error(e);
     alert("批量下载失败：\n" + String(e));
@@ -551,3 +558,5 @@ zipBtn.addEventListener("click", async () => {
 // 初始化
 setSummary();
 refreshButtons();
+log("页面已打开，自动加载压缩引擎…");
+void loadEngine();

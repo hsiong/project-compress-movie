@@ -27,7 +27,7 @@
         </select>
       </div>
       <div class="col">
-        <label>CRF（画质↔体积，越大越小）: <span id="crfVal">28</span></label>
+        <label>CRF（画质↔体积，越大越小）: <span id="crfVal">22</span></label>
         <input id="crf" type="range" min="18" max="38" step="1" value="28" />
       </div>
       <div class="col">
@@ -57,6 +57,7 @@
       <button id="startBtn" disabled>2) 开始压缩（队列）</button>
       <button id="stopBtn" class="danger" disabled>停止</button>
       <button id="clearBtn" class="ghost">清空列表</button>
+      <button id="zipBtn" class="ghost" disabled>批量下载全部</button>
 
       <span class="pill rightNote">
         <input id="autoDownload" type="checkbox" style="transform:scale(1.1)" />
@@ -75,7 +76,6 @@
       <div class="actions">
         <button class="mini ghost" id="pickBtn">选择文件</button>
         <input id="picker" type="file" accept="video/*" multiple />
-        <button class="mini" id="zipBtn" disabled>批量下载 ZIP</button>
       </div>
     </div>
 
