@@ -44,5 +44,7 @@ Then open:
 - Runs fully in browser; videos are not uploaded to a backend.
 - Uses `@ffmpeg/core-mt` and requires COOP/COEP headers.
 - `serve_coi.py` already sets required headers for local development.
-- Accessing via `http://LAN_IP:9003` is not a secure context in browsers; the app auto-falls back to single-thread core.
-- To use multi-thread core over LAN/public access, serve the page over HTTPS.
+- Access policy for this project:
+  - Supported: `http://127.0.0.1:*`, `http://localhost:*`, and trusted `https://...`.
+  - Not supported for multi-thread core: other `http://...` addresses (including LAN IP).
+  - Not supported: self-signed HTTPS certificates (browsers may treat them as untrusted context).

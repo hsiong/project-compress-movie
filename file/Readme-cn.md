@@ -42,5 +42,7 @@ docker compose -f file/docker-compose.yml up -d --build
 - 全程浏览器内处理，视频不会上传后端。
 - 当前使用 `@ffmpeg/core-mt` 多线程核心。
 - 多线程需要 COOP/COEP 响应头，`serve_coi.py` 已内置。
-- 通过 `http://局域网IP:9003` 访问时，浏览器通常不是安全上下文，程序会自动降级到单线程 core。
-- 若要在局域网/公网访问下启用多线程 core，请使用 HTTPS。
+- 访问限制：
+  - 支持：`http://127.0.0.1:*`、`http://localhost:*`、受信任证书的 `https://...`。
+  - 不支持多线程核心：其他 `http://...` 地址（包含局域网 IP）。
+  - 不支持：自签名 HTTPS（浏览器通常视为不受信任上下文）。
