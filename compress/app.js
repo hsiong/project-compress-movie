@@ -5,16 +5,14 @@ const SOURCES = [
     ffmpeg: "https://registry.npmmirror.com/@ffmpeg/ffmpeg/0.12.15/files/dist/esm/index.js",
     util:  "https://registry.npmmirror.com/@ffmpeg/util/0.12.2/files/dist/esm/index.js",
     ffmpegWorkerBase: "https://registry.npmmirror.com/@ffmpeg/ffmpeg/0.12.15/files/dist/esm",
-    // ✅ 改这里：umd -> esm
-    coreBase: "https://registry.npmmirror.com/@ffmpeg/core/0.12.10/files/dist/esm",
+    coreBase: "https://registry.npmmirror.com/@ffmpeg/core-mt/0.12.10/files/dist/esm",
   },
   {
     name: "jsDelivr",
     ffmpeg: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js",
     util:  "https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js",
     ffmpegWorkerBase: "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm",
-    // ✅ 改这里：umd -> esm
-    coreBase: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm",
+    coreBase: "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm",
   }
 ];
 
@@ -56,6 +54,7 @@ let queue = []; // {id, file, ui..., outBlob, outName, status}
 let running = false;
 let stopRequested = false;
 let currentItemId = null;
+const EXEC_TIMEOUT_MS = 8 * 60 * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const nowId = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -317,6 +316,13 @@ loadBtn.addEventListener("click", async () => {
   logEl.style.display = "block";
 
   try {
+    if (!crossOriginIsolated) {
+      throw new Error(
+        "当前页面不是 crossOriginIsolated，@ffmpeg/core-mt 无法运行。\n" +
+        "请使用带 COOP/COEP 头的服务启动页面。"
+      );
+    }
+
     await loadFFmpegModules();
 
     ffmpeg = new FFmpeg();
@@ -325,6 +331,12 @@ loadBtn.addEventListener("click", async () => {
       const item = queue.find((x) => x.id === currentItemId);
       if (item && item.status === "working") setRowProgress(item, progress || 0);
     });
+    ffmpeg.on("log", ({ message }) => {
+      if (!message) return;
+      if (/time=|speed=|frame=|Error|error|failed|Invalid/i.test(message)) {
+        log(message);
+      }
+    });
 
     const coreBase = activeSource.coreBase;
     const workerBase = activeSource.ffmpegWorkerBase;
@@ -332,7 +344,7 @@ loadBtn.addEventListener("click", async () => {
     log("开始加载核心（core/wasm/worker）…");
 
     // 逐个拉取 + 明确报错点
-    let coreURL, wasmURL, classWorkerURL;
+    let coreURL, wasmURL, workerURL, classWorkerURL;
     try {
       coreURL = await toBlobURL(`${coreBase}/ffmpeg-core.js`, "text/javascript");
       log("core.js ✅");
@@ -348,6 +360,13 @@ loadBtn.addEventListener("click", async () => {
     }
 
     try {
+      workerURL = await toBlobURL(`${coreBase}/ffmpeg-core.worker.js`, "text/javascript");
+      log("core.worker.js ✅");
+    } catch (e) {
+      throw new Error("core.worker.js 加载失败：\n" + String(e));
+    }
+
+    try {
       // 直接跨域构造 Worker 会触发 SecurityError，改为同源 blob 启动脚本
       classWorkerURL = await toWorkerBootstrapBlobURL(`${workerBase}/worker.js`);
       log("worker.js ✅（classWorkerURL）");
@@ -356,7 +375,10 @@ loadBtn.addEventListener("click", async () => {
     }
 
     log("调用 ffmpeg.load() …");
-    await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
+    await ffmpeg.load({ coreURL, wasmURL, workerURL, classWorkerURL });
+    log("执行自检 ffmpeg.exec(-version) …");
+    await ffmpeg.exec(["-hide_banner", "-version"], 30_000);
+    log("ffmpeg.exec 自检 ✅");
 
     loaded = true;
     log(`ffmpeg 引擎加载完成 ✅（来源：${activeSource.name}）`);
@@ -434,8 +456,13 @@ async function compressOne(item) {
   const crf = String(crfEl.value);
   const preset = presetEl.value;
   const ab = abEl.value;
+  const threads = Math.max(1, Math.min(4, Number(navigator.hardwareConcurrency || 4)));
 
   const args = [
+    "-hide_banner",
+    "-loglevel", "info",
+    "-nostdin",
+    "-y",
     "-i", inPath,
     "-vf", vf, // 可选缩放 + 强制偶数分辨率
     "-c:v", "libx264", // 重新编码 为 H.264
@@ -443,13 +470,18 @@ async function compressOne(item) {
     "-crf", crf, // 质量控制
     "-c:a", "aac",
     "-b:a", `${ab}k`,
+    "-threads", String(threads),
     "-movflags", "+faststart",
     outPath
   ];
 
   try {
+    log(`开始压缩：${file.name}｜preset=${preset}｜crf=${crf}｜threads=${threads}`);
+    log("写入输入文件到 wasm FS …");
     await ffmpeg.writeFile(inPath, await fetchFile(file));
-    await ffmpeg.exec(args);
+    log("写入完成，开始执行 ffmpeg …");
+    await ffmpeg.exec(args, EXEC_TIMEOUT_MS);
+    log("ffmpeg 执行完成，开始读取输出文件 …");
 
     const data = await ffmpeg.readFile(outPath);
     const outBlob = new Blob([data.buffer], { type: "video/mp4" });
