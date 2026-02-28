@@ -2,7 +2,7 @@
 
 Browser-based video compression tool powered by FFmpeg WASM.
 
-For Chinese documentation, see [Readme-cn.md](./Readme-cn.md).
+For Chinese documentation, see [Readme-cn.md](./file/Readme-cn.md).
 
 <img width="1152" height="802" alt="image" src="https://github.com/user-attachments/assets/9b1d3f2d-9e08-41ed-bb61-941d97a89f69" />
 
@@ -26,6 +26,16 @@ sh start.sh
 ```
 
 2. Open:
+
+`http://127.0.0.1:9003/compress/movie_compress.html`
+
+## Docker Deploy
+
+```bash
+docker compose up -d --build
+```
+
+Then open:
 
 `http://127.0.0.1:9003/compress/movie_compress.html`
 

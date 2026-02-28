@@ -27,6 +27,16 @@ sh start.sh
 
 `http://127.0.0.1:9003/compress/movie_compress.html`
 
+## Docker 部署
+
+```bash
+docker compose up -d --build
+```
+
+然后打开：
+
+`http://127.0.0.1:9003/compress/movie_compress.html`
+
 ## 说明
 
 - 全程浏览器内处理，视频不会上传后端。
